@@ -1,0 +1,1 @@
+# Mineria-de-Datos-Modelos-de-regresi-n-lineal.
