@@ -32,7 +32,94 @@ summary(listings)
 ```
 ===Analisis de media y demas===
 
-===============================
+
+```{r graphs start}
+listings$price_num <- as.numeric(gsub("[$,]", "", listings$price))
+
+# Variables de interés
+vars <- c("price_num", "bedrooms", "accommodates", "bathrooms",
+          "beds", "review_scores_rating", "reviews_per_month",
+          "availability_365", "minimum_nights")
+df <- listings[, vars]
+```
+
+```{r statistic description}
+# ── 1. ESTADÍSTICAS DESCRIPTIVAS ─────────────────────────────────────────────
+summary(df)
+
+# Estadísticas manuales por variable
+for (v in vars) {
+  cat("\n──", v, "──\n")
+  x <- df[[v]][!is.na(df[[v]])]
+  cat("  Media:    ", round(mean(x), 2), "\n")
+  cat("  Mediana:  ", round(median(x), 2), "\n")
+  cat("  SD:       ", round(sd(x), 2), "\n")
+  cat("  Min/Max:  ", round(min(x), 2), "/", round(max(x), 2), "\n")
+  cat("  Q1/Q3:    ", round(quantile(x, 0.25), 2), "/", round(quantile(x, 0.75), 2), "\n")
+}
+```
+
+```{r claude cooking}
+# ── Valores faltantes ─────────────────────────────────────────────────────────
+na_pct <- sort(sapply(df, function(x) round(mean(is.na(x)) * 100, 2)), decreasing = TRUE)
+na_pct <- na_pct[na_pct > 0]
+
+par(mar = c(4, 12, 3, 2))
+barplot(rev(na_pct), horiz = TRUE, las = 1,
+        col  = "#E05C5C", border = "white",
+        xlab = "% valores faltantes",
+        main = "Variables con valores faltantes")
+
+```
+
+```{r price distribution}
+# ── Distribución de precio (sin outliers) ─────────────────────────────────────
+par(mar = c(4, 4, 3, 2))
+precio_filtrado <- df$price_num[df$price_num < 500 & !is.na(df$price_num)]
+
+hist(precio_filtrado, breaks = 60,
+     col = "#5B8DB8", border = "white",
+     main = "Distribución de precio por noche (< $500)",
+     xlab = "Precio (USD)", ylab = "Frecuencia")
+abline(v = 193, col = "#E05C5C", lwd = 2, lty = 2)
+legend("topright", legend = "Mediana: $193", col = "#E05C5C", lty = 2, lwd = 2)
+
+```
+
+```{r boxplot for price, bedrooms y accomodates}
+# ── Boxplot precio ~ bedrooms y accommodates ──────────────────────────────────
+par(mfrow = c(1, 2), mar = c(5, 4, 4, 1))
+
+df_filt <- df[df$price_num < 800 & !is.na(df$price_num), ]
+
+boxplot(price_num ~ bedrooms, data = df_filt[!is.na(df_filt$bedrooms), ],
+        col = "#5B8DB8", border = "gray30", outline = FALSE,
+        main = "Precio por habitaciones\nr = 0.4766",
+        xlab = "Nº habitaciones", ylab = "Precio/noche (USD)")
+
+df_filt$acc_grp <- cut(df_filt$accommodates,
+                        breaks = c(0,2,4,6,8,Inf),
+                        labels = c("1-2","3-4","5-6","7-8","9+"))
+boxplot(price_num ~ acc_grp, data = df_filt[!is.na(df_filt$acc_grp), ],
+        col = "#6DBF8E", border = "gray30", outline = FALSE,
+        main = "Precio por capacidad\nr = 0.5345",
+        xlab = "Huéspedes", ylab = "Precio/noche (USD)")
+
+par(mfrow = c(1, 1))
+
+```
+
+```{r rating distribution}
+# ── Distribución de ratings ───────────────────────────────────────────────────
+par(mar = c(4, 4, 3, 2))
+hist(df$review_scores_rating[!is.na(df$review_scores_rating)],
+     breaks = 40, col = "#E8A838", border = "white",
+     main = "Distribución de puntuación general",
+     xlab = "Review score rating", ylab = "Frecuencia")
+abline(v = 4.78, col = "#E05C5C", lwd = 2, lty = 2)
+legend("topleft", legend = "Media: 4.78", col = "#E05C5C", lty = 2, lwd = 2)
+```
+
 
 ```{r analisis}
 # ==================== ANÁLISIS CON GGPLOT2 ====================
