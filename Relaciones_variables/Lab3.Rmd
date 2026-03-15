@@ -182,4 +182,102 @@ table(sample_listings2$room_type)
 
 ```
 
+```{r pre procesamiento}
+# Seleccionar y limpiar variables relevantes para predecir price
+model_df <- listings %>%
+  mutate(
+    # Target: price limpio
+    price = as.numeric(gsub("[$,]", "", price)),
+    
+    # Variables categoricas -> numericas
+    is_superhost     = ifelse(host_is_superhost == "t", 1, 0),
+    is_instant_book  = ifelse(instant_bookable == "t", 1, 0),
+    
+    # Rates de texto -> numerico
+    host_response_rate_num   = as.numeric(gsub("%", "", host_response_rate)),
+    host_acceptance_rate_num = as.numeric(gsub("%", "", host_acceptance_rate)),
+    
+    # room_type como factor
+    room_type = as.factor(room_type)
+  ) %>%
+  select(
+    price,
+    bedrooms, accommodates, bathrooms, beds,
+    review_scores_rating, reviews_per_month,
+    availability_365, minimum_nights,
+    is_superhost, is_instant_book,
+    host_response_rate_num, host_acceptance_rate_num,
+    room_type
+  ) %>%
+  # Eliminar filas con NA en target o features clave
+  filter(
+    !is.na(price), price > 0, price < 1000,
+    !is.na(bedrooms),
+    !is.na(bathrooms),
+    !is.na(beds)
+  ) %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+cat("Dimensiones del dataset limpio:", nrow(model_df), "filas x", ncol(model_df), "columnas\n")
+summary(model_df)
+```
+
+```{r caracteristicas}
+model_df <- model_df %>%
+  mutate(
+    # Ratio precio por huesped
+    price_per_guest = price / accommodates,
+    
+    # Ratio camas por habitacion
+    beds_per_bedroom = ifelse(bedrooms > 0, beds / bedrooms, beds),
+    
+    # Categoría de tamaño del alojamiento
+    size_category = case_when(
+      accommodates <= 2  ~ "small",
+      accommodates <= 5  ~ "medium",
+      accommodates <= 8  ~ "large",
+      TRUE               ~ "extra_large"
+    ) %>% as.factor(),
+    
+    # Alojamiento bien valorado (rating >= 4.8)
+    high_rated = ifelse(!is.na(review_scores_rating) & review_scores_rating >= 4.8, 1, 0),
+    
+    # Alta disponibilidad (más de la mitad del año libre)
+    high_availability = ifelse(availability_365 > 182, 1, 0)
+  )
+
+cat("Features finales:", ncol(model_df), "\n")
+cat("Nuevas features creadas: price_per_guest, beds_per_bedroom,",
+    "size_category, high_rated, high_availability\n")
+
+```
+
+```{r entrenamiento 70/30}
+set.seed(42)
+
+n        <- nrow(model_df)
+train_idx <- sample(seq_len(n), size = floor(0.70 * n))
+
+train_df <- model_df[ train_idx, ]
+test_df  <- model_df[-train_idx, ]
+
+cat("Total de observaciones: ", n, "\n")
+cat("Train: ", nrow(train_df), "filas (", round(nrow(train_df)/n*100), "%)\n")
+cat("Test:  ", nrow(test_df),  "filas (", round(nrow(test_df)/n*100),  "%)\n")
+
+# Verificar distribución del target en ambos sets
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+hist(train_df$price, breaks = 40, col = "#5B8DB8", border = "white",
+     main = "Price — Train", xlab = "Precio (USD)")
+abline(v = median(train_df$price), col = "#E05C5C", lwd = 2, lty = 2)
+
+hist(test_df$price, breaks = 40, col = "#6DBF8E", border = "white",
+     main = "Price — Test", xlab = "Precio (USD)")
+abline(v = median(test_df$price), col = "#E05C5C", lwd = 2, lty = 2)
+par(mfrow = c(1, 1))
+
+cat("\nMediana price Train:", median(train_df$price), "\n")
+cat("Mediana price Test: ", median(test_df$price),  "\n")
+```
+
 
