@@ -1,283 +1,151 @@
 ---
-title: "Analisis Lab 3"
-output: html_notebook
+title: "Laboratorio 3 – Modelos de Regresión Lineal"
+author: "Anggelie Velásquez, Anthony Lou, Isabella Obando"
+date: "15 de marzo de 2026"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    highlight: tango
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+---
+
+# 1. Liberias y carga de datos
 
 ```{r libraries}
 library(dplyr)
 library(ggplot2)
+library(car)
+library(lmtest)
+library(nortest)
+library(glmnet)
+library(corrplot)
 ```
 
-```{r smt}
-load("../Data/Lab3/listings.RData")
+```{r load_data}
+load("listings.RData")
 df <- listings
-head(df)
-```
 
-```{r another}
 cat("Número de filas:   ", nrow(listings), "\n")
-cat("Número de columnas:", ncol(listings), "\n\n")
+cat("Número de columnas:", ncol(listings), "\n")
 ```
 
-```{r another one}
-# Tipos de variables
-cat("Tipos de variables:\n")
+---
+
+# 3. Análisis Exploratorio de Datos
+
+## 3.1 Tipos de variables
+
+```{r str_data}
 str(listings)
 ```
 
-```{r yet another one}
-# Explicación general
-cat("\n── Resumen general ──\n")
+## 3.2 Resumen general
+
+```{r summary_data}
 summary(listings)
 ```
-===Analisis de media y demas===
 
+## 3.3 Preparacion de variables numericas
 
-```{r graphs start}
+```{r prep_vars}
 listings$price_num <- as.numeric(gsub("[$,]", "", listings$price))
 
-# Variables de interés
 vars <- c("price_num", "bedrooms", "accommodates", "bathrooms",
           "beds", "review_scores_rating", "reviews_per_month",
           "availability_365", "minimum_nights")
-df <- listings[, vars]
+df_num <- listings[, vars]
 ```
 
-```{r statistic description}
-# ── 1. ESTADÍSTICAS DESCRIPTIVAS ──────
-summary(df)
+## 3.4 Estadisticas descriptivas
 
-# Estadísticas manuales por variable
+```{r descriptive_stats}
+summary(df_num)
+
 for (v in vars) {
   cat("\n──", v, "──\n")
-  x <- df[[v]][!is.na(df[[v]])]
-  cat("  Media:    ", round(mean(x), 2), "\n")
-  cat("  Mediana:  ", round(median(x), 2), "\n")
-  cat("  SD:       ", round(sd(x), 2), "\n")
-  cat("  Min/Max:  ", round(min(x), 2), "/", round(max(x), 2), "\n")
-  cat("  Q1/Q3:    ", round(quantile(x, 0.25), 2), "/", round(quantile(x, 0.75), 2), "\n")
+  x <- df_num[[v]][!is.na(df_num[[v]])]
+  cat("  Media:   ", round(mean(x), 2), "\n")
+  cat("  Mediana: ", round(median(x), 2), "\n")
+  cat("  SD:      ", round(sd(x), 2), "\n")
+  cat("  Min/Max: ", round(min(x), 2), "/", round(max(x), 2), "\n")
+  cat("  Q1/Q3:   ", round(quantile(x, 0.25), 2), "/",
+                     round(quantile(x, 0.75), 2), "\n")
 }
 ```
 
-```{r claude cooking}
-# ── Valores faltantes ─
-na_pct <- sort(sapply(df, function(x) round(mean(is.na(x)) * 100, 2)), decreasing = TRUE)
+## 3.5 Valores faltantes
+
+```{r missing_values}
+na_pct <- sort(sapply(df_num, function(x) round(mean(is.na(x)) * 100, 2)),
+               decreasing = TRUE)
 na_pct <- na_pct[na_pct > 0]
 
 par(mar = c(4, 12, 3, 2))
 barplot(rev(na_pct), horiz = TRUE, las = 1,
-        col  = "#E05C5C", border = "white",
+        col = "#E05C5C", border = "white",
         xlab = "% valores faltantes",
         main = "Variables con valores faltantes")
-
 ```
 
-```{r price distribution}
-# ── Distribución de precio (sin outliers) ─────────
+## 3.6 Distribucion del precio
+
+```{r price_dist}
 par(mar = c(4, 4, 3, 2))
-precio_filtrado <- df$price_num[df$price_num < 500 & !is.na(df$price_num)]
+precio_filtrado <- df_num$price_num[df_num$price_num < 500 &
+                                    !is.na(df_num$price_num)]
 
 hist(precio_filtrado, breaks = 60,
      col = "#5B8DB8", border = "white",
      main = "Distribución de precio por noche (< $500)",
      xlab = "Precio (USD)", ylab = "Frecuencia")
 abline(v = 193, col = "#E05C5C", lwd = 2, lty = 2)
-legend("topright", legend = "Mediana: $193", col = "#E05C5C", lty = 2, lwd = 2)
-
+legend("topright", legend = "Mediana: $193",
+       col = "#E05C5C", lty = 2, lwd = 2)
 ```
 
-```{r boxplot for price, bedrooms y accomodates}
-# ── Boxplot precio ~ bedrooms y accommodates ──────
+## 3.7 Precio por habitaciones y capacidad
+
+```{r boxplot_price}
+df_filt <- df_num[df_num$price_num < 800 & !is.na(df_num$price_num), ]
+
 par(mfrow = c(1, 2), mar = c(5, 4, 4, 1))
 
-df_filt <- df[df$price_num < 800 & !is.na(df$price_num), ]
-
-boxplot(price_num ~ bedrooms, data = df_filt[!is.na(df_filt$bedrooms), ],
+boxplot(price_num ~ bedrooms,
+        data = df_filt[!is.na(df_filt$bedrooms), ],
         col = "#5B8DB8", border = "gray30", outline = FALSE,
         main = "Precio por habitaciones\nr = 0.4766",
         xlab = "Nº habitaciones", ylab = "Precio/noche (USD)")
 
 df_filt$acc_grp <- cut(df_filt$accommodates,
-                        breaks = c(0,2,4,6,8,Inf),
-                        labels = c("1-2","3-4","5-6","7-8","9+"))
-boxplot(price_num ~ acc_grp, data = df_filt[!is.na(df_filt$acc_grp), ],
+                       breaks = c(0, 2, 4, 6, 8, Inf),
+                       labels = c("1-2", "3-4", "5-6", "7-8", "9+"))
+boxplot(price_num ~ acc_grp,
+        data = df_filt[!is.na(df_filt$acc_grp), ],
         col = "#6DBF8E", border = "gray30", outline = FALSE,
         main = "Precio por capacidad\nr = 0.5345",
         xlab = "Huéspedes", ylab = "Precio/noche (USD)")
 
 par(mfrow = c(1, 1))
-
 ```
 
-```{r rating distribution}
-# ── Distribución de ratings ─
+## 3.8 Distribucion de ratings
+
+```{r rating_dist}
 par(mar = c(4, 4, 3, 2))
-hist(df$review_scores_rating[!is.na(df$review_scores_rating)],
+hist(df_num$review_scores_rating[!is.na(df_num$review_scores_rating)],
      breaks = 40, col = "#E8A838", border = "white",
      main = "Distribución de puntuación general",
      xlab = "Review score rating", ylab = "Frecuencia")
 abline(v = 4.78, col = "#E05C5C", lwd = 2, lty = 2)
-legend("topleft", legend = "Media: 4.78", col = "#E05C5C", lty = 2, lwd = 2)
-```
-
-
-```{r analisis}
-# ==================== ANÁLISIS CON GGPLOT2 ====================
-
-# 1) Convertir price a numérico (ya lo hicimos como price_num, pero lo confirmamos)
-listings$price <- as.numeric(gsub("[$,]", "", listings$price))
-
-# 2) Verificaciones rápidas
-summary(listings$price)
-class(listings$price)
-
-set.seed(123)
-sample_listings <- listings %>% sample_n(5000)
-
-sample_listings2 <- sample_listings %>%
-  filter(
-    !is.na(price),
-    !is.na(bedrooms),
-    !is.na(accommodates),
-    !is.na(room_type),
-    price < 1000
-  )
-
-# CORRELACIONES
-cor_bedrooms <- cor(sample_listings2$price, sample_listings2$bedrooms, use = "complete.obs")
-cor_accommodates <- cor(sample_listings2$price, sample_listings2$accommodates, use = "complete.obs")
-
-print(paste("Correlación price vs bedrooms:", round(cor_bedrooms, 4)))
-print(paste("Correlación price vs accommodates:", round(cor_accommodates, 4)))
-
-# SCATTER PLOTS
-ggplot(sample_listings2, aes(x = bedrooms, y = price)) +
-  geom_jitter(alpha = 0.3) +
-  labs(
-    title = "Relación entre número de habitaciones y precio",
-    x = "bedrooms",
-    y = "price"
-  )
-
-ggplot(sample_listings2, aes(x = accommodates, y = price)) +
-  geom_jitter(alpha = 0.3) +
-  labs(
-    title = "Relación entre capacidad y precio",
-    x = "accommodates",
-    y = "price"
-  )
-
-# COMPARACIÓN
-ggplot(sample_listings2, aes(x = room_type, y = price)) +
-  geom_boxplot() +
-  labs(
-    title = "Precio según tipo de habitación",
-    x = "room_type",
-    y = "price"
-  )
-
-# Resúmenes estadísticos
-summary(sample_listings2[, c("price", "bedrooms", "accommodates")])
-table(sample_listings2$room_type)
-
-```
-
-```{r pre procesamiento}
-# Seleccionar y limpiar variables relevantes para predecir price
-model_df <- listings %>%
-  mutate(
-    # Target: price limpio
-    price = as.numeric(gsub("[$,]", "", price)),
-    
-    # Variables categoricas -> numericas
-    is_superhost     = ifelse(host_is_superhost == "t", 1, 0),
-    is_instant_book  = ifelse(instant_bookable == "t", 1, 0),
-    
-    # Rates de texto -> numerico
-    host_response_rate_num   = as.numeric(gsub("%", "", host_response_rate)),
-    host_acceptance_rate_num = as.numeric(gsub("%", "", host_acceptance_rate)),
-    
-    # room_type como factor
-    room_type = as.factor(room_type)
-  ) %>%
-  select(
-    price,
-    bedrooms, accommodates, bathrooms, beds,
-    review_scores_rating, reviews_per_month,
-    availability_365, minimum_nights,
-    is_superhost, is_instant_book,
-    host_response_rate_num, host_acceptance_rate_num,
-    room_type
-  ) %>%
-  # Eliminar filas con NA en target o features clave
-  filter(
-    !is.na(price), price > 0, price < 1000,
-    !is.na(bedrooms),
-    !is.na(bathrooms),
-    !is.na(beds)
-  ) %>%
-  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)))
-
-cat("Dimensiones del dataset limpio:", nrow(model_df), "filas x", ncol(model_df), "columnas\n")
-summary(model_df)
-```
-
-```{r caracteristicas}
-model_df <- model_df %>%
-  mutate(
-    # Ratio precio por huesped
-    price_per_guest = price / accommodates,
-    
-    # Ratio camas por habitacion
-    beds_per_bedroom = ifelse(bedrooms > 0, beds / bedrooms, beds),
-    
-    # Categoría de tamaño del alojamiento
-    size_category = case_when(
-      accommodates <= 2  ~ "small",
-      accommodates <= 5  ~ "medium",
-      accommodates <= 8  ~ "large",
-      TRUE               ~ "extra_large"
-    ) %>% as.factor(),
-    
-    # Alojamiento bien valorado (rating >= 4.8)
-    high_rated = ifelse(!is.na(review_scores_rating) & review_scores_rating >= 4.8, 1, 0),
-    
-    # Alta disponibilidad (más de la mitad del año libre)
-    high_availability = ifelse(availability_365 > 182, 1, 0)
-  )
-
-cat("Features finales:", ncol(model_df), "\n")
-cat("Nuevas features creadas: price_per_guest, beds_per_bedroom,",
-    "size_category, high_rated, high_availability\n")
-
-```
-
-```{r entrenamiento 70/30}
-set.seed(42)
-
-n        <- nrow(model_df)
-train_idx <- sample(seq_len(n), size = floor(0.70 * n))
-
-train_df <- model_df[ train_idx, ]
-test_df  <- model_df[-train_idx, ]
-
-cat("Total de observaciones: ", n, "\n")
-cat("Train: ", nrow(train_df), "filas (", round(nrow(train_df)/n*100), "%)\n")
-cat("Test:  ", nrow(test_df),  "filas (", round(nrow(test_df)/n*100),  "%)\n")
-
-# Verificar distribución del target en ambos sets
-par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
-hist(train_df$price, breaks = 40, col = "#5B8DB8", border = "white",
-     main = "Price — Train", xlab = "Precio (USD)")
-abline(v = median(train_df$price), col = "#E05C5C", lwd = 2, lty = 2)
-
-hist(test_df$price, breaks = 40, col = "#6DBF8E", border = "white",
-     main = "Price — Test", xlab = "Precio (USD)")
-abline(v = median(test_df$price), col = "#E05C5C", lwd = 2, lty = 2)
-par(mfrow = c(1, 1))
-
-cat("\nMediana price Train:", median(train_df$price), "\n")
-cat("Mediana price Test: ", median(test_df$price),  "\n")
+legend("topleft", legend = "Media: 4.78",
+       col = "#E05C5C", lty = 2, lwd = 2)
 ```
 
 
