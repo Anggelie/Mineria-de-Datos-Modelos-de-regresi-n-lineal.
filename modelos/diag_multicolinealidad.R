@@ -6,7 +6,7 @@ library(car)      # para VIF
 library(lmtest)   # para Breusch-Pagan
 library(nortest)  # para Anderson-Darling
 
-# ── 1. VIF — Detección de multicolinealidad ───────────────────
+# ── 1. VIF — Detección de multicolinealidad ────────
 vif_vals <- vif(modelo_multiple)
 
 cat("\n── VIF por variable ──\n")
@@ -38,7 +38,7 @@ legend("bottomright",
        fill   = c("#5B8DB8", "#E8A838", "#E05C5C"),
        bty    = "n")
 
-# ── 2. Prueba de normalidad de residuos ───────────────────────
+# ── 2. Prueba de normalidad de residuos ─
 residuos <- residuals(modelo_multiple)
 
 # Histograma de residuos
@@ -63,7 +63,7 @@ cat("\n── Anderson-Darling (normalidad) ──\n")
 print(ad_test)
 cat("Interpretación: p <0.05 → residuos NO son normales\n")
 
-# ── 3. Prueba de homocedasticidad ────────────────────────────
+# ── 3. Prueba de homocedasticidad 
 bp_test <- bptest(modelo_multiple)
 cat("\n── Breusch-Pagan (homocedasticidad) ──\n")
 print(bp_test)

@@ -44,7 +44,7 @@ df <- listings[, vars]
 ```
 
 ```{r statistic description}
-# ── 1. ESTADÍSTICAS DESCRIPTIVAS ─────────────────────────────────────────────
+# ── 1. ESTADÍSTICAS DESCRIPTIVAS ──────
 summary(df)
 
 # Estadísticas manuales por variable
@@ -60,7 +60,7 @@ for (v in vars) {
 ```
 
 ```{r claude cooking}
-# ── Valores faltantes ─────────────────────────────────────────────────────────
+# ── Valores faltantes ─
 na_pct <- sort(sapply(df, function(x) round(mean(is.na(x)) * 100, 2)), decreasing = TRUE)
 na_pct <- na_pct[na_pct > 0]
 
@@ -73,7 +73,7 @@ barplot(rev(na_pct), horiz = TRUE, las = 1,
 ```
 
 ```{r price distribution}
-# ── Distribución de precio (sin outliers) ─────────────────────────────────────
+# ── Distribución de precio (sin outliers) ─────────
 par(mar = c(4, 4, 3, 2))
 precio_filtrado <- df$price_num[df$price_num < 500 & !is.na(df$price_num)]
 
@@ -87,7 +87,7 @@ legend("topright", legend = "Mediana: $193", col = "#E05C5C", lty = 2, lwd = 2)
 ```
 
 ```{r boxplot for price, bedrooms y accomodates}
-# ── Boxplot precio ~ bedrooms y accommodates ──────────────────────────────────
+# ── Boxplot precio ~ bedrooms y accommodates ──────
 par(mfrow = c(1, 2), mar = c(5, 4, 4, 1))
 
 df_filt <- df[df$price_num < 800 & !is.na(df$price_num), ]
@@ -110,7 +110,7 @@ par(mfrow = c(1, 1))
 ```
 
 ```{r rating distribution}
-# ── Distribución de ratings ───────────────────────────────────────────────────
+# ── Distribución de ratings ─
 par(mar = c(4, 4, 3, 2))
 hist(df$review_scores_rating[!is.na(df$review_scores_rating)],
      breaks = 40, col = "#E8A838", border = "white",
